@@ -64,9 +64,10 @@
     "@tanstack/react-table": "^8.20.5",
     "idb": "latest",
     "openai": "latest",
-    "mammoth": "latest",
     "formidable": "latest",
-    "pdfjs-dist": "latest"
+    "pdfjs-dist": "latest",
+    "mammoth": "latest",
+    "pdf-parse": "latest"
   },
   "devDependencies": {
     "@types/react": "^18.2.43",
@@ -79,7 +80,6 @@
     "eslint": "^8.55.0",
     "eslint-config-next": "14.0.4",
     "tailwindcss-animate": "^1.0.7",
-    "@types/multer": "latest",
-    "@types/formidable": "latest"
+    "@types/multer": "latest"
   }
 }

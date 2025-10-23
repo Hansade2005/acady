@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -10,6 +10,35 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Upload, FileText, User, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import PDFViewer from '@/components/PDFViewer';
+
+// Function to extract text from PDF using pdf-parse web version
+const extractTextFromPDF = async (file: File): Promise<string> => {
+  try {
+    const module = await import('https://cdn.jsdelivr.net/npm/pdf-parse@latest/dist/pdf-parse/web/pdf-parse.es.js');
+    const pdfParse = module.default;
+    const arrayBuffer = await file.arrayBuffer();
+    const data = new Uint8Array(arrayBuffer);
+    const result = await pdfParse(data);
+    return result.text;
+  } catch (error) {
+    console.error('Error extracting text from PDF:', error);
+    throw new Error('Failed to extract text from PDF');
+  }
+};
+
+// Function to extract text from DOCX using mammoth
+const extractTextFromDOCX = async (file: File): Promise<string> => {
+  try {
+    const module = await import('https://cdn.jsdelivr.net/npm/mammoth@latest/mammoth.browser.min.js');
+    const mammoth = module.default;
+    const arrayBuffer = await file.arrayBuffer();
+    const result = await mammoth.extractRawText({ arrayBuffer });
+    return result.value;
+  } catch (error) {
+    console.error('Error extracting text from DOCX:', error);
+    throw new Error('Failed to extract text from DOCX');
+  }
+};
 
 export default function SkillPassportPage() {
   const [loading, setLoading] = useState(false);
@@ -26,16 +55,19 @@ export default function SkillPassportPage() {
     setLoading(true);
     try {
       const formData = new FormData();
+      let extractedText = '';
+
       if (file.type === 'application/pdf') {
-        const extractedText = await extractTextFromPDF(file);
-        formData.append('manualData', extractedText);
+        extractedText = await extractTextFromPDF(file);
       } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.type === 'application/msword') {
-        formData.append('cv', file);
+        extractedText = await extractTextFromDOCX(file);
       } else {
         toast.error('Unsupported file type');
         setLoading(false);
         return;
       }
+
+      formData.append('manualData', extractedText);
 
       const response = await fetch('/api/generate-skill-passport', {
         method: 'POST',

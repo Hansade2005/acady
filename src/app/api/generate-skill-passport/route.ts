@@ -1,9 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import formidable from 'formidable';
-import fs from 'fs';
-
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic'; // Prevent build-time execution
 
 interface SkillPassportData {
   name: string;
@@ -18,22 +13,6 @@ interface SkillPassportData {
   lastUpdated: string;
   careerHighlights: string[];
 }
-
-// Dynamically import pdf-parse (avoids DOMMatrix error)
-const extractTextFromPDF = async (buffer: Buffer): Promise<string> => {
-  const pdfParse = await import('pdf-parse') as any;
-  const { Readable } = await import('stream');
-  const stream = Readable.from(buffer);
-  const data = await pdfParse(stream);
-  return data.text;
-};
-
-// Dynamically import mammoth (avoids DOM requirement)
-const extractTextFromDocx = async (buffer: Buffer): Promise<string> => {
-  const mammoth = await import('mammoth');
-  const result = await mammoth.extractRawText({ buffer });
-  return result.value;
-};
 
 const callLLM = async (text: string): Promise<SkillPassportData> => {
   const prompt = `Extract and structure the following CV text into a skill passport JSON. Use this schema:
@@ -171,35 +150,11 @@ const generatePassportHTML = (data: SkillPassportData): string => `
 
 export async function POST(req: NextRequest) {
   try {
-    const form = formidable({ multiples: false });
+    const formData = await req.formData();
+    const extractedText = formData.get('manualData') as string;
 
-    const [fields, files] = await new Promise<[formidable.Fields, formidable.Files]>((resolve, reject) => {
-      form.parse(req as any, (err, fields, files) => {
-        if (err) reject(err);
-        else resolve([fields, files]);
-      });
-    });
-
-    let extractedText = '';
-
-    if (files.file) {
-      const file = Array.isArray(files.file) ? files.file[0] : files.file;
-      const buffer = fs.readFileSync(file.filepath);
-
-      if (
-        file.mimetype ===
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-      ) {
-        extractedText = await extractTextFromDocx(buffer);
-      } else {
-        return NextResponse.json({ error: 'Unsupported file type. Only DOCX uploads are supported here. Use PDF for client-side extraction.' }, { status: 400 });
-      }
-    } else if (fields.manualData) {
-      extractedText = Array.isArray(fields.manualData)
-        ? fields.manualData[0]
-        : fields.manualData;
-    } else {
-      return NextResponse.json({ error: 'No CV file or manual data provided.' }, { status: 400 });
+    if (!extractedText) {
+      return NextResponse.json({ error: 'No manual data provided.' }, { status: 400 });
     }
 
     const structuredData = await callLLM(extractedText);
