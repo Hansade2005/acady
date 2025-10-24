@@ -67,7 +67,8 @@
     "formidable": "latest",
     "mammoth": "latest",
     "pdf-parse": "latest",
-    "react-pdf": "latest"
+    "react-pdf": "latest",
+    "next-auth": "^0.0.0-peer-deps"
   },
   "devDependencies": {
     "@types/react": "^18.2.43",

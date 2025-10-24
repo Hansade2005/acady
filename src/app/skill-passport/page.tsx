@@ -1,18 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-
-export const dynamic = 'force-dynamic';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Upload, FileText, User, Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
-
-import PDFViewer from '@/components/PDFViewer';
+import { useState } from 'react';
+import Header from '@/components/Header';
+import Footer from '@/components/Footer';
+import SkillPassportDisplay from '@/components/SkillPassportDisplay';
 
 // Function to extract text from PDF using PDF.js
 const extractTextFromPDF = async (file: File): Promise<string> => {
@@ -27,7 +18,7 @@ const extractTextFromPDF = async (file: File): Promise<string> => {
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const content = await page.getTextContent();
-      text += content.items.map((item: any) => item.str).join(' ') + '\n';
+      text += content.items.map((item: any) => item.str).join(' ') + '\\n';
     }
     return text;
   } catch (error) {
@@ -50,237 +41,78 @@ const extractTextFromDOCX = async (file: File): Promise<string> => {
 };
 
 export default function SkillPassportPage() {
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<{ passportHtml: string; data: any } | null>(null);
   const [file, setFile] = useState<File | null>(null);
-  const [manualData, setManualData] = useState('');
-
-  const handleFileUpload = async () => {
-    if (!file) {
-      toast.error('Please select a file');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const formData = new FormData();
-      let extractedText = '';
-
-      if (file.type === 'application/pdf') {
-        extractedText = await extractTextFromPDF(file);
-      } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.type === 'application/msword') {
-        extractedText = await extractTextFromDOCX(file);
-      } else {
-        toast.error('Unsupported file type');
-        setLoading(false);
-        return;
-      }
-
-      formData.append('manualData', extractedText);
-
-      const response = await fetch('/api/generate-skill-passport', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to generate skill passport');
-      }
-
-      const data = await response.json();
-      setResult({ passportHtml: data.html, data: data.data });
-      toast.success('Skill passport generated successfully!');
-    } catch (error) {
-      console.error('Error:', error);
-      toast.error('Failed to generate skill passport');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleManualEntry = async () => {
-    if (!manualData.trim()) {
-      toast.error('Please enter your information');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const formData = new FormData();
-      formData.append('manualData', manualData);
-
-      const response = await fetch('/api/generate-skill-passport', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to generate skill passport');
-      }
-
-      const data = await response.json();
-      setResult({ passportHtml: data.html, data: data.data });
-      toast.success('Skill passport generated successfully!');
-    } catch (error) {
-      console.error('Error:', error);
-      toast.error('Failed to generate skill passport');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [result, setResult] = useState<any | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      if (selectedFile.size > 10 * 1024 * 1024) {
-        toast.error('File size must be less than 10MB');
-        return;
-      }
-      if (!['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/msword'].includes(selectedFile.type)) {
-        toast.error('Only PDF and Word documents are allowed');
-        return;
-      }
-      setFile(selectedFile);
+    if (e.target.files && e.target.files[0]) {
+      setFile(e.target.files[0]);
     }
   };
 
-  const downloadPassport = () => {
-    if (!result) return;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file) return;
 
-    const blob = new Blob([result.passportHtml], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `skill-passport-${result.data.name.replace(/\s+/g, '-')}.html`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    setLoading(true);
+    setError(null);
+    try {
+      let text = '';
+      if (file.type === 'application/pdf') {
+        text = await extractTextFromPDF(file);
+      } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+        text = await extractTextFromDOCX(file);
+      } else {
+        throw new Error('Unsupported file type. Please upload a PDF or DOCX.');
+      }
+
+      const formData = new FormData();
+      formData.append('manualData', text);
+
+      const response = await fetch('/api/generate-skill-passport', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate skill passport');
+      }
+
+      const data = await response.json();
+      setResult(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4">
-      <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">3A Skill Passport™ Generator</h1>
-          <p className="text-xl text-gray-600">Transform your CV into a professional skill passport</p>
-        </div>
-
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Generate Your Skill Passport
-            </CardTitle>
-            <CardDescription>
-              Upload your CV (PDF or Word) or enter your information manually to create a professional skill passport.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="upload" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="upload">Upload CV</TabsTrigger>
-                <TabsTrigger value="manual">Manual Entry</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="upload" className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="cv-upload">Select your CV file</Label>
-                  <Input
-                    id="cv-upload"
-                    type="file"
-                    accept=".pdf,.doc,.docx"
-                    onChange={handleFileChange}
-                    className="cursor-pointer"
-                  />
-                  {file && (
-                    <p className="text-sm text-gray-600">
-                      Selected: {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
-                    </p>
-                  )}
-                </div>
-                {file && file.type === 'application/pdf' && (
-                  <div className="space-y-2">
-                    <Label>PDF Preview</Label>
-                    <PDFViewer file={file} />
-                  </div>
-                )}
-                <Button
-                  onClick={handleFileUpload}
-                  disabled={!file || loading}
-                  className="w-full"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="mr-2 h-4 w-4" />
-                      Generate from CV
-                    </>
-                  )}
-                </Button>
-              </TabsContent>
-
-              <TabsContent value="manual" className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="manual-data">Enter your professional information</Label>
-                  <Textarea
-                    id="manual-data"
-                    placeholder="Enter your name, skills, experience, education, and other relevant information..."
-                    value={manualData}
-                    onChange={(e) => setManualData(e.target.value)}
-                    rows={10}
-                    className="min-h-[200px]"
-                  />
-                </div>
-                <Button
-                  onClick={handleManualEntry}
-                  disabled={!manualData.trim() || loading}
-                  className="w-full"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <User className="mr-2 h-4 w-4" />
-                      Generate from Text
-                    </>
-                  )}
-                </Button>
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-
-        {result && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span>Your Skill Passport</span>
-                <Button onClick={downloadPassport} variant="outline">
-                  <Upload className="mr-2 h-4 w-4" />
-                  Download HTML
-                </Button>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="border rounded-lg overflow-hidden">
-                <iframe
-                  srcDoc={result.passportHtml}
-                  className="w-full h-[600px] border-0"
-                  title="Skill Passport Preview"
-                />
-              </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+    <div className="min-h-screen bg-white text-black">
+      <Header />
+      <main className="container mx-auto px-4 py-8">
+        <h1 className="text-4xl font-bold text-center mb-8">Skill Passport Generator</h1>
+        <form onSubmit={handleSubmit} className="max-w-md mx-auto mb-8">
+          <input
+            type="file"
+            accept=".pdf,.docx"
+            onChange={handleFileChange}
+            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+          />
+          <button
+            type="submit"
+            disabled={!file || loading}
+            className="w-full mt-4 bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
+          >
+            {loading ? 'Generating...' : 'Generate Skill Passport'}
+          </button>
+        </form>
+        {error && <p className="text-red-500 text-center mb-4">{error}</p>}
+        {result && <SkillPassportDisplay data={result.data} />}
+      </main>
+      <Footer />
     </div>
   );
 }
