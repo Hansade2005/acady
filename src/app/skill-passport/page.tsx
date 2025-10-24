@@ -4,6 +4,9 @@ import { useState } from 'react';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import SkillPassportDisplay from '@/components/SkillPassportDisplay';
+import ThemeSelector from '@/components/ThemeSelector';
+import { useLocalStorage } from '@/hooks/useLocalStorage';
+import type { ThemeName } from '@/lib/themes';
 
 // Function to extract text from PDF using PDF.js
 const extractTextFromPDF = async (file: File): Promise<string> => {
@@ -45,6 +48,7 @@ export default function SkillPassportPage() {
   const [result, setResult] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedTheme, setSelectedTheme] = useLocalStorage<ThemeName>('skill-passport-theme', 'default');
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -109,8 +113,9 @@ export default function SkillPassportPage() {
             {loading ? 'Generating...' : 'Generate Skill Passport'}
           </button>
         </form>
+        <ThemeSelector selectedTheme={selectedTheme} onThemeChange={setSelectedTheme} />
         {error && <p className="text-red-500 text-center mb-4">{error}</p>}
-        {result && <SkillPassportDisplay data={result.data} />}
+        {result && <SkillPassportDisplay data={result.data} themeName={selectedTheme} />}
       </main>
       <Footer />
     </div>
