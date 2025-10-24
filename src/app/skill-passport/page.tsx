@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+
+export const dynamic = 'force-dynamic';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -9,17 +11,25 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Upload, FileText, User, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+
 import PDFViewer from '@/components/PDFViewer';
 
-// Function to extract text from PDF using pdf-parse web version
+// Function to extract text from PDF using PDF.js
 const extractTextFromPDF = async (file: File): Promise<string> => {
   try {
-    const module = await import('https://cdn.jsdelivr.net/npm/pdf-parse@latest/dist/pdf-parse/web/pdf-parse.es.js');
-    const pdfParse = module.default;
+    // Import react-pdf dynamically to avoid DOM issues during build
+    const { pdfjs } = await import('react-pdf');
+    // Set up PDF.js worker for text extraction
+    pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
     const arrayBuffer = await file.arrayBuffer();
-    const data = new Uint8Array(arrayBuffer);
-    const result = await pdfParse(data);
-    return result.text;
+    const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+    let text = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      text += content.items.map((item: any) => item.str).join(' ') + '\n';
+    }
+    return text;
   } catch (error) {
     console.error('Error extracting text from PDF:', error);
     throw new Error('Failed to extract text from PDF');
@@ -29,8 +39,7 @@ const extractTextFromPDF = async (file: File): Promise<string> => {
 // Function to extract text from DOCX using mammoth
 const extractTextFromDOCX = async (file: File): Promise<string> => {
   try {
-    const module = await import('https://cdn.jsdelivr.net/npm/mammoth@latest/mammoth.browser.min.js');
-    const mammoth = module.default;
+    const mammoth = await import('mammoth');
     const arrayBuffer = await file.arrayBuffer();
     const result = await mammoth.extractRawText({ arrayBuffer });
     return result.value;
